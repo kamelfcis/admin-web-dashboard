@@ -45,7 +45,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { MEDLINK_LOGO_URL, PUBLIC_PATIENT_BASE_URL, supabase } from "./lib/supabase";
+import { MEDLINK_LOGO_URL, supabase } from "./lib/supabase";
 
 const ROLE_SUPER = "super_admin";
 const ROLE_HOSPITAL = "hospital_admin";
@@ -220,6 +220,14 @@ async function listHospitals() {
   return data ?? [];
 }
 
+async function listHospitalsForManagement(searchText) {
+  const { data, error } = await supabase.rpc("admin_list_hospitals_manage", {
+    search_text: searchText?.trim() || null,
+  });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 async function getDashboardStats() {
   const { data, error } = await supabase.rpc("admin_dashboard_stats");
   if (error) throw new Error(error.message);
@@ -367,25 +375,34 @@ function PublicPatientProfilePageShell({ token }) {
   const isValidLink = Boolean(meta?.valid);
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-6xl px-4 py-6">
-      <section className="glass-panel rounded-3xl border border-cyan-300/35 bg-gradient-to-r from-cyan-500/20 via-blue-500/10 to-violet-500/20 p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-cyan-200/80">Public Patient Profile</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-cyan-50">MedLink Patient Timeline</h1>
-            <p className="mt-1 text-sm text-slate-200">Secure Token: {token}</p>
-            <p className="mt-1 text-xs text-slate-300">Base URL: {PUBLIC_PATIENT_BASE_URL}</p>
+    <div className="mx-auto min-h-screen w-full max-w-7xl px-3 py-5 sm:px-5 sm:py-7">
+      <section className="glass-panel relative overflow-hidden rounded-3xl border border-cyan-300/35 bg-gradient-to-r from-cyan-500/20 via-blue-500/10 to-violet-500/20 p-5 sm:p-7">
+        <div className="absolute -right-14 -top-14 h-44 w-44 rounded-full bg-cyan-400/10 blur-2xl" />
+        <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-violet-400/10 blur-2xl" />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/90">MedLink Secure Share</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-cyan-50 sm:text-3xl">Patient Timeline Snapshot</h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-200 sm:text-base">
+              Premium read-only health summary shared by patient consent.
+            </p>
             {meta?.expires_at ? (
-              <p className="mt-1 text-xs text-amber-200">
-                Link expires at: {new Date(meta.expires_at).toLocaleString()}
+              <p className="mt-3 inline-flex rounded-full border border-amber-300/40 bg-amber-500/15 px-3 py-1 text-xs font-medium text-amber-100">
+                Expires at: {new Date(meta.expires_at).toLocaleString()}
               </p>
             ) : null}
           </div>
-          <img
-            src={MEDLINK_LOGO_URL}
-            alt="MedLink"
-            className="h-14 w-14 rounded-xl border border-cyan-300/25 bg-white/10 p-1 object-contain"
-          />
+          <div className="flex items-center gap-3 rounded-2xl border border-cyan-300/25 bg-white/10 px-3 py-2">
+            <img
+              src={MEDLINK_LOGO_URL}
+              alt="MedLink"
+              className="h-14 w-14 rounded-xl border border-cyan-300/25 bg-white/10 p-1 object-contain"
+            />
+            <div>
+              <p className="text-sm font-semibold tracking-wide text-cyan-50">MED LINK</p>
+              <p className="text-xs text-slate-300">Healthcare Platform</p>
+            </div>
+          </div>
         </div>
       </section>
       {isLoading && (
@@ -410,8 +427,8 @@ function PublicPatientProfilePageShell({ token }) {
 
       {!isLoading && !errorText && isValidLink && (
         <>
-          <section className="mt-4 grid gap-4 lg:grid-cols-[360px,1fr]">
-            <article className="glass-panel rounded-3xl p-4">
+          <section className="mt-4 grid gap-4 xl:grid-cols-[380px,1fr]">
+            <article className="glass-panel rounded-3xl p-4 sm:p-5">
               <h2 className="text-lg font-semibold text-cyan-100">Patient Profile</h2>
               {!meta?.show_profile_basic ? (
                 <p className="mt-3 text-sm text-slate-300">Profile section hidden by patient share settings.</p>
@@ -422,16 +439,16 @@ function PublicPatientProfilePageShell({ token }) {
                       <img
                         src={profile.render_profile_image_url}
                         alt={profile.full_name || "Patient"}
-                        className="h-20 w-20 rounded-2xl border border-cyan-300/25 object-cover"
+                        className="h-20 w-20 rounded-2xl border border-cyan-300/25 object-cover sm:h-24 sm:w-24"
                       />
                     ) : (
-                      <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-cyan-300/25 bg-white/10 text-cyan-100">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-cyan-300/25 bg-white/10 text-cyan-100 sm:h-24 sm:w-24">
                         <Users size={28} />
                       </div>
                     )}
                     <div>
-                      <p className="text-lg font-semibold text-cyan-50">{profile?.full_name || "Patient"}</p>
-                      <p className="text-xs text-slate-300">Patient ID: {profile?.patient_id || "-"}</p>
+                      <p className="text-lg font-semibold text-cyan-50 sm:text-xl">{profile?.full_name || "Patient"}</p>
+                      <p className="text-xs text-slate-300">Patient health summary</p>
                     </div>
                   </div>
                   <div className="mt-4 space-y-2 text-sm">
@@ -449,7 +466,7 @@ function PublicPatientProfilePageShell({ token }) {
               )}
             </article>
 
-            <article className="glass-panel rounded-3xl p-4">
+            <article className="glass-panel rounded-3xl p-4 sm:p-5">
               <h2 className="text-lg font-semibold text-cyan-100">Timeline Overview</h2>
               <p className="mt-1 text-sm text-slate-300">
                 Full patient timeline including medical records, prescriptions, lab tests, scans, allergies, and chronic conditions.
@@ -458,7 +475,7 @@ function PublicPatientProfilePageShell({ token }) {
                 {Object.entries(typeTitles)
                   .filter(([key]) => allowedSections[key])
                   .map(([key, label]) => (
-                  <div key={key} className="rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-sm">
+                  <div key={key} className="rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-sm backdrop-blur-sm">
                     <span className="text-slate-200">{label}</span>
                     <span className="ml-2 rounded-full bg-cyan-500/20 px-2 py-0.5 text-xs text-cyan-100">
                       {(groupedTimeline[key] || []).length}
@@ -475,14 +492,17 @@ function PublicPatientProfilePageShell({ token }) {
               .map(([key, label]) => {
               const entries = groupedTimeline[key] || [];
               return (
-                <article key={key} className="glass-panel rounded-3xl p-4">
+                <article key={key} className="glass-panel rounded-3xl p-4 sm:p-5">
                   <h3 className="text-base font-semibold text-cyan-100">{label}</h3>
                   {entries.length === 0 ? (
                     <p className="mt-2 text-sm text-slate-400">No entries.</p>
                   ) : (
                     <div className="mt-3 space-y-2">
                       {entries.map((entry) => (
-                        <div key={`${entry.entry_id}-${entry.entry_type}`} className="rounded-xl border border-cyan-300/20 bg-white/5 p-3">
+                        <div
+                          key={`${entry.entry_id}-${entry.entry_type}`}
+                          className="rounded-xl border border-cyan-300/20 bg-white/5 p-3 transition hover:border-cyan-300/40 hover:bg-white/10"
+                        >
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
                               <p className="font-semibold text-cyan-50">{entry.title}</p>
@@ -669,13 +689,19 @@ function AppShell({
   const [specializationSearch, setSpecializationSearch] = useState("");
   const [doctorSearch, setDoctorSearch] = useState("");
   const [signupDoctorSearch, setSignupDoctorSearch] = useState("");
-  const [specializationsViewMode, setSpecializationsViewMode] = useState("table");
-  const [hospitalDoctorsViewMode, setHospitalDoctorsViewMode] = useState("table");
-  const [signupDoctorsViewMode, setSignupDoctorsViewMode] = useState("table");
+  const [hospitalSearch, setHospitalSearch] = useState("");
+  const [specializationsViewMode, setSpecializationsViewMode] = useState("cards");
+  const [hospitalDoctorsViewMode, setHospitalDoctorsViewMode] = useState("cards");
+  const [signupDoctorsViewMode, setSignupDoctorsViewMode] = useState("cards");
+  const [hospitalsManageViewMode, setHospitalsManageViewMode] = useState("cards");
   const [specName, setSpecName] = useState("");
   const [specActive, setSpecActive] = useState(true);
   const [specImage, setSpecImage] = useState(null);
   const [editingSpecId, setEditingSpecId] = useState(null);
+  const [hospitalName, setHospitalName] = useState("");
+  const [hospitalAddress, setHospitalAddress] = useState("");
+  const [hospitalPhone, setHospitalPhone] = useState("");
+  const [editingHospitalId, setEditingHospitalId] = useState(null);
   const [doctorEmail, setDoctorEmail] = useState("");
   const [doctorLicense, setDoctorLicense] = useState("");
   const [doctorSpecializationId, setDoctorSpecializationId] = useState("");
@@ -712,6 +738,12 @@ function AppShell({
     queryKey: ["hospitals"],
     queryFn: listHospitals,
     enabled: canAccessHospital && (isHospitalPage || isDashboardPage),
+  });
+
+  const hospitalsManageQuery = useQuery({
+    queryKey: ["hospitals-manage", hospitalSearch],
+    queryFn: () => listHospitalsForManagement(hospitalSearch),
+    enabled: context.role === ROLE_SUPER && isHospitalPage,
   });
 
   const dashboardStatsQuery = useQuery({
@@ -756,6 +788,48 @@ function AppShell({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["specializations"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    },
+  });
+
+  const upsertHospitalMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("admin_upsert_hospital", {
+        p_id: editingHospitalId,
+        p_name: hospitalName.trim(),
+        p_address: hospitalAddress.trim() || null,
+        p_phone: hospitalPhone.trim() || null,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      setEditingHospitalId(null);
+      setHospitalName("");
+      setHospitalAddress("");
+      setHospitalPhone("");
+      queryClient.invalidateQueries({ queryKey: ["hospitals"] });
+      queryClient.invalidateQueries({ queryKey: ["hospitals-manage"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    },
+  });
+
+  const deleteHospitalMutation = useMutation({
+    mutationFn: async (hospitalId) => {
+      const { error } = await supabase.rpc("admin_delete_hospital", {
+        p_id: hospitalId,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      if (editingHospitalId) {
+        setEditingHospitalId(null);
+        setHospitalName("");
+        setHospitalAddress("");
+        setHospitalPhone("");
+      }
+      queryClient.invalidateQueries({ queryKey: ["hospitals"] });
+      queryClient.invalidateQueries({ queryKey: ["hospitals-manage"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["signup-doctors"] });
     },
   });
 
@@ -1057,6 +1131,69 @@ function AppShell({
     ],
   );
 
+  const hospitalManageColumns = useMemo(
+    () => [
+      { accessorKey: "hospital_name", header: "Hospital" },
+      {
+        accessorKey: "hospital_address",
+        header: "Address",
+        cell: ({ getValue }) => getValue() || "-",
+      },
+      {
+        accessorKey: "hospital_phone",
+        header: "Phone",
+        cell: ({ getValue }) => getValue() || "-",
+      },
+      {
+        accessorKey: "doctor_count",
+        header: "Doctors",
+        cell: ({ getValue }) => toNumber(getValue()).toLocaleString(),
+      },
+      {
+        accessorKey: "hospital_admin_count",
+        header: "Admins",
+        cell: ({ getValue }) => toNumber(getValue()).toLocaleString(),
+      },
+      {
+        accessorKey: "created_at",
+        header: "Created",
+        cell: ({ getValue }) => {
+          const value = getValue();
+          return value ? new Date(value).toLocaleDateString() : "-";
+        },
+      },
+      {
+        header: "Actions",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <button
+              className="med-btn-secondary px-3 py-1.5 text-xs"
+              onClick={() => {
+                setEditingHospitalId(row.original.hospital_id);
+                setHospitalName(row.original.hospital_name ?? "");
+                setHospitalAddress(row.original.hospital_address ?? "");
+                setHospitalPhone(row.original.hospital_phone ?? "");
+              }}
+            >
+              Edit
+            </button>
+            <button
+              className="med-btn-secondary border-rose-300/35 px-3 py-1.5 text-xs text-rose-100"
+              onClick={() => {
+                if (window.confirm("Delete this hospital?")) {
+                  deleteHospitalMutation.mutate(row.original.hospital_id);
+                }
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [deleteHospitalMutation],
+  );
+
   const dashboardStats = dashboardStatsQuery.data;
   const statsCards = useMemo(() => {
     if (!dashboardStats) return [];
@@ -1305,14 +1442,14 @@ function AppShell({
                   ? "Dashboard"
                   : activePage === PAGE_SPECIALIZATIONS
                     ? "Specializations"
-                    : "Hospital Doctors"}
+                    : "Hospital Management"}
               </h1>
               <p className="text-sm text-slate-300">
                 {activePage === PAGE_DASHBOARD
                   ? "High-level analytics for doctors, hospitals, and appointments."
                   : activePage === PAGE_SPECIALIZATIONS
                     ? "Manage medical specialties with premium workflows."
-                    : "Manage hospital doctor assignments and verification."}
+                    : "Manage hospitals and doctor assignments with premium workflows."}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1329,6 +1466,7 @@ function AppShell({
                   queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
                   queryClient.invalidateQueries({ queryKey: ["signup-doctors"] });
                   queryClient.invalidateQueries({ queryKey: ["hospitals"] });
+                  queryClient.invalidateQueries({ queryKey: ["hospitals-manage"] });
                   queryClient.invalidateQueries({ queryKey: ["specializations"] });
                   queryClient.invalidateQueries({ queryKey: ["hospital-doctors"] });
                 }}
@@ -1732,23 +1870,60 @@ function AppShell({
               <div className="glass-panel rounded-3xl p-4">
                 {context.role === ROLE_SUPER ? (
                   <>
-                    <h2 className="mb-3 text-lg font-semibold">Hospitals Overview</h2>
-                    <p className="mb-3 text-sm text-slate-300">
-                      Assignments for signed-up doctors are available in the section below.
-                    </p>
+                    <h2 className="mb-3 text-lg font-semibold">
+                      {editingHospitalId ? "Edit Hospital" : "Add Hospital"}
+                    </h2>
                     <div className="space-y-2">
-                      {(hospitalsQuery.data ?? []).map((hospital) => (
-                        <div
-                          key={hospital.hospital_id}
-                          className="rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-sm"
+                      <input
+                        className="med-input"
+                        placeholder="Hospital name"
+                        value={hospitalName}
+                        onChange={(e) => setHospitalName(e.target.value)}
+                      />
+                      <input
+                        className="med-input"
+                        placeholder="Address"
+                        value={hospitalAddress}
+                        onChange={(e) => setHospitalAddress(e.target.value)}
+                      />
+                      <input
+                        className="med-input"
+                        placeholder="Phone"
+                        value={hospitalPhone}
+                        onChange={(e) => setHospitalPhone(e.target.value)}
+                      />
+                      {editingHospitalId && (
+                        <button
+                          className="med-btn-secondary w-full"
+                          onClick={() => {
+                            setEditingHospitalId(null);
+                            setHospitalName("");
+                            setHospitalAddress("");
+                            setHospitalPhone("");
+                          }}
                         >
-                          <p className="font-semibold text-cyan-100">{hospital.hospital_name}</p>
-                          <p className="text-xs text-slate-300">
-                            Assigned doctors: {toNumber(hospital.doctor_count).toLocaleString()}
-                          </p>
-                        </div>
-                      ))}
-                      {!hospitalsQuery.data?.length && <p className="text-sm text-slate-300">No hospitals found.</p>}
+                          Cancel Edit
+                        </button>
+                      )}
+                      <button
+                        className="med-btn-primary w-full"
+                        disabled={upsertHospitalMutation.isPending || !hospitalName.trim()}
+                        onClick={() => upsertHospitalMutation.mutate()}
+                      >
+                        {upsertHospitalMutation.isPending
+                          ? "Saving..."
+                          : editingHospitalId
+                            ? "Update Hospital"
+                            : "Create Hospital"}
+                      </button>
+                      <div className="mt-3 rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-sm">
+                        <p className="text-cyan-100">
+                          Total hospitals: {toNumber(dashboardStats?.total_hospitals).toLocaleString()}
+                        </p>
+                        <p className="text-xs text-slate-300">
+                          Full CRUD is available below with cards/table view.
+                        </p>
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -1796,6 +1971,84 @@ function AppShell({
                 )}
               </div>
             </div>
+
+            {context.role === ROLE_SUPER && (
+              <div className="glass-panel rounded-3xl p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-lg font-semibold">Hospitals</h2>
+                  <button
+                    className="med-btn-secondary gap-2 px-3 py-2 text-xs"
+                    onClick={() => setHospitalsManageViewMode((prev) => (prev === "table" ? "cards" : "table"))}
+                    title={hospitalsManageViewMode === "table" ? "Switch to cards" : "Switch to table"}
+                  >
+                    {hospitalsManageViewMode === "table" ? <LayoutGrid size={14} /> : <Table2 size={14} />}
+                    {hospitalsManageViewMode === "table" ? "Cards" : "Table"}
+                  </button>
+                </div>
+                <input
+                  className="med-input mb-3"
+                  placeholder="Search hospital by name, address, or phone..."
+                  value={hospitalSearch}
+                  onChange={(e) => setHospitalSearch(e.target.value)}
+                />
+                {hospitalsManageQuery.isLoading ? (
+                  <SkeletonTable />
+                ) : hospitalsManageViewMode === "table" ? (
+                  <DataTable
+                    columns={hospitalManageColumns}
+                    data={hospitalsManageQuery.data ?? []}
+                    emptyText="No hospitals found."
+                  />
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {(hospitalsManageQuery.data ?? []).map((hospital) => (
+                      <article key={hospital.hospital_id} className="rounded-2xl border border-cyan-300/20 bg-white/5 p-3">
+                        <p className="text-base font-semibold text-cyan-100">{hospital.hospital_name}</p>
+                        <p className="mt-2 text-xs text-slate-200">
+                          Address: {hospital.hospital_address || "N/A"}
+                        </p>
+                        <p className="text-xs text-slate-200">Phone: {hospital.hospital_phone || "N/A"}</p>
+                        <p className="mt-2 text-xs text-slate-300">
+                          Doctors: {toNumber(hospital.doctor_count).toLocaleString()} • Admins:{" "}
+                          {toNumber(hospital.hospital_admin_count).toLocaleString()}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          Created: {hospital.created_at ? new Date(hospital.created_at).toLocaleDateString() : "-"}
+                        </p>
+                        <div className="mt-3 flex items-center gap-2">
+                          <button
+                            className="med-btn-secondary px-3 py-1.5 text-xs"
+                            onClick={() => {
+                              setEditingHospitalId(hospital.hospital_id);
+                              setHospitalName(hospital.hospital_name ?? "");
+                              setHospitalAddress(hospital.hospital_address ?? "");
+                              setHospitalPhone(hospital.hospital_phone ?? "");
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="med-btn-secondary border-rose-300/35 px-3 py-1.5 text-xs text-rose-100"
+                            onClick={() => {
+                              if (window.confirm("Delete this hospital?")) {
+                                deleteHospitalMutation.mutate(hospital.hospital_id);
+                              }
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                    {!hospitalsManageQuery.data?.length && (
+                      <p className="col-span-full rounded-xl border border-cyan-300/20 bg-white/5 p-4 text-center text-sm text-slate-300">
+                        No hospitals found.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {context.role === ROLE_SUPER && (
               <div className="glass-panel rounded-3xl p-4">
