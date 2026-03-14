@@ -114,9 +114,18 @@ async function resolveSignedUrl(bucket, rawValue) {
   return data?.signedUrl ?? rawValue ?? null;
 }
 
-async function getPublicPatientProfile(patientId) {
+async function getPublicShareMeta(token) {
+  const { data, error } = await supabase.rpc("get_public_share_link_meta", {
+    p_token: token,
+  });
+  if (error) throw new Error(error.message);
+  if (!Array.isArray(data) || data.length === 0) return null;
+  return data[0];
+}
+
+async function getPublicPatientProfile(token) {
   const { data, error } = await supabase.rpc("public_get_patient_profile_overview", {
-    p_patient_id: patientId,
+    p_token: token,
   });
   if (error) throw new Error(error.message);
   if (!Array.isArray(data) || data.length === 0) return null;
@@ -125,9 +134,9 @@ async function getPublicPatientProfile(patientId) {
   return { ...row, render_profile_image_url: renderProfileImageUrl };
 }
 
-async function listPublicPatientTimeline(patientId) {
+async function listPublicPatientTimeline(token) {
   const { data, error } = await supabase.rpc("public_get_patient_timeline_overview", {
-    p_patient_id: patientId,
+    p_token: token,
   });
   if (error) throw new Error(error.message);
   const rows = data ?? [];
@@ -296,17 +305,23 @@ function SkeletonTable() {
   );
 }
 
-function PublicPatientProfilePageShell({ patientId }) {
+function PublicPatientProfilePageShell({ token }) {
+  const metaQuery = useQuery({
+    queryKey: ["public-share-meta", token],
+    queryFn: () => getPublicShareMeta(token),
+    enabled: Boolean(token),
+  });
+
   const profileQuery = useQuery({
-    queryKey: ["public-patient-profile", patientId],
-    queryFn: () => getPublicPatientProfile(patientId),
-    enabled: Boolean(patientId),
+    queryKey: ["public-patient-profile", token],
+    queryFn: () => getPublicPatientProfile(token),
+    enabled: Boolean(token),
   });
 
   const timelineQuery = useQuery({
-    queryKey: ["public-patient-timeline", patientId],
-    queryFn: () => listPublicPatientTimeline(patientId),
-    enabled: Boolean(patientId),
+    queryKey: ["public-patient-timeline", token],
+    queryFn: () => listPublicPatientTimeline(token),
+    enabled: Boolean(token),
   });
 
   const groupedTimeline = useMemo(() => {
@@ -336,9 +351,20 @@ function PublicPatientProfilePageShell({ patientId }) {
     chronic_condition: "Chronic Conditions",
   };
 
-  const isLoading = profileQuery.isLoading || timelineQuery.isLoading;
-  const errorText = profileQuery.error?.message || timelineQuery.error?.message;
+  const meta = metaQuery.data;
+  const allowedSections = {
+    medical_record: Boolean(meta?.show_medical_records),
+    prescription: Boolean(meta?.show_prescriptions),
+    lab_test: Boolean(meta?.show_lab_tests),
+    scan: Boolean(meta?.show_scans),
+    allergy: Boolean(meta?.show_allergies),
+    chronic_condition: Boolean(meta?.show_chronic_conditions),
+  };
+
+  const isLoading = metaQuery.isLoading || profileQuery.isLoading || timelineQuery.isLoading;
+  const errorText = metaQuery.error?.message || profileQuery.error?.message || timelineQuery.error?.message;
   const profile = profileQuery.data;
+  const isValidLink = Boolean(meta?.valid);
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-6xl px-4 py-6">
@@ -347,8 +373,13 @@ function PublicPatientProfilePageShell({ patientId }) {
           <div>
             <p className="text-xs uppercase tracking-wider text-cyan-200/80">Public Patient Profile</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-cyan-50">MedLink Patient Timeline</h1>
-            <p className="mt-1 text-sm text-slate-200">Patient ID: {patientId}</p>
+            <p className="mt-1 text-sm text-slate-200">Secure Token: {token}</p>
             <p className="mt-1 text-xs text-slate-300">Base URL: {PUBLIC_PATIENT_BASE_URL}</p>
+            {meta?.expires_at ? (
+              <p className="mt-1 text-xs text-amber-200">
+                Link expires at: {new Date(meta.expires_at).toLocaleString()}
+              </p>
+            ) : null}
           </div>
           <img
             src={MEDLINK_LOGO_URL}
@@ -368,39 +399,54 @@ function PublicPatientProfilePageShell({ patientId }) {
         </div>
       )}
 
-      {!isLoading && !errorText && (
+      {!isLoading && !errorText && !isValidLink && (
+        <div className="mt-4 glass-panel rounded-3xl border border-amber-300/30 bg-amber-500/10 p-5">
+          <h2 className="text-lg font-semibold text-amber-100">Link Expired or Invalid</h2>
+          <p className="mt-2 text-sm text-amber-50">
+            This secure QR link is no longer available. Ask the patient to generate a new QR share.
+          </p>
+        </div>
+      )}
+
+      {!isLoading && !errorText && isValidLink && (
         <>
           <section className="mt-4 grid gap-4 lg:grid-cols-[360px,1fr]">
             <article className="glass-panel rounded-3xl p-4">
               <h2 className="text-lg font-semibold text-cyan-100">Patient Profile</h2>
-              <div className="mt-3 flex items-center gap-3">
-                {profile?.render_profile_image_url ? (
-                  <img
-                    src={profile.render_profile_image_url}
-                    alt={profile.full_name || "Patient"}
-                    className="h-20 w-20 rounded-2xl border border-cyan-300/25 object-cover"
-                  />
-                ) : (
-                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-cyan-300/25 bg-white/10 text-cyan-100">
-                    <Users size={28} />
+              {!meta?.show_profile_basic ? (
+                <p className="mt-3 text-sm text-slate-300">Profile section hidden by patient share settings.</p>
+              ) : (
+                <>
+                  <div className="mt-3 flex items-center gap-3">
+                    {profile?.render_profile_image_url ? (
+                      <img
+                        src={profile.render_profile_image_url}
+                        alt={profile.full_name || "Patient"}
+                        className="h-20 w-20 rounded-2xl border border-cyan-300/25 object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-cyan-300/25 bg-white/10 text-cyan-100">
+                        <Users size={28} />
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-lg font-semibold text-cyan-50">{profile?.full_name || "Patient"}</p>
+                      <p className="text-xs text-slate-300">Patient ID: {profile?.patient_id || "-"}</p>
+                    </div>
                   </div>
-                )}
-                <div>
-                  <p className="text-lg font-semibold text-cyan-50">{profile?.full_name || "Patient"}</p>
-                  <p className="text-xs text-slate-300">Patient ID: {patientId}</p>
-                </div>
-              </div>
-              <div className="mt-4 space-y-2 text-sm">
-                <p className="rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-slate-100">
-                  Phone: <span className="text-cyan-100">{profile?.phone_number || "-"}</span>
-                </p>
-                <p className="rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-slate-100">
-                  Insurance: <span className="text-cyan-100">{profile?.insurance_provider || "-"}</span>
-                </p>
-                <p className="rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-slate-100">
-                  National ID: <span className="text-cyan-100">{profile?.national_id || "-"}</span>
-                </p>
-              </div>
+                  <div className="mt-4 space-y-2 text-sm">
+                    <p className="rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-slate-100">
+                      Phone: <span className="text-cyan-100">{profile?.phone_number || "-"}</span>
+                    </p>
+                    <p className="rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-slate-100">
+                      Insurance: <span className="text-cyan-100">{profile?.insurance_provider || "-"}</span>
+                    </p>
+                    <p className="rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-slate-100">
+                      National ID: <span className="text-cyan-100">{profile?.national_id || "-"}</span>
+                    </p>
+                  </div>
+                </>
+              )}
             </article>
 
             <article className="glass-panel rounded-3xl p-4">
@@ -409,7 +455,9 @@ function PublicPatientProfilePageShell({ patientId }) {
                 Full patient timeline including medical records, prescriptions, lab tests, scans, allergies, and chronic conditions.
               </p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {Object.entries(typeTitles).map(([key, label]) => (
+                {Object.entries(typeTitles)
+                  .filter(([key]) => allowedSections[key])
+                  .map(([key, label]) => (
                   <div key={key} className="rounded-xl border border-cyan-300/20 bg-white/5 px-3 py-2 text-sm">
                     <span className="text-slate-200">{label}</span>
                     <span className="ml-2 rounded-full bg-cyan-500/20 px-2 py-0.5 text-xs text-cyan-100">
@@ -422,7 +470,9 @@ function PublicPatientProfilePageShell({ patientId }) {
           </section>
 
           <section className="mt-4 space-y-4">
-            {Object.entries(typeTitles).map(([key, label]) => {
+            {Object.entries(typeTitles)
+              .filter(([key]) => allowedSections[key])
+              .map(([key, label]) => {
               const entries = groupedTimeline[key] || [];
               return (
                 <article key={key} className="glass-panel rounded-3xl p-4">
@@ -1886,14 +1936,14 @@ export function App() {
     enabled: Boolean(session?.user?.id),
   });
 
-  const publicPatientMatch = useMemo(() => {
+  const publicTokenMatch = useMemo(() => {
     const match = window.location.pathname.match(/^\/public\/patient\/([^/]+)$/);
     if (!match || !match[1]) return null;
     return decodeURIComponent(match[1]);
   }, []);
 
-  if (publicPatientMatch) {
-    return <PublicPatientProfilePageShell patientId={publicPatientMatch} />;
+  if (publicTokenMatch) {
+    return <PublicPatientProfilePageShell token={publicTokenMatch} />;
   }
 
   useEffect(() => {
